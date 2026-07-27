@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["image", "logLevel", "resources", "podAnnotations", "nodeSelector", "tolerations", "affinity"],
+  "properties": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "logLevel": {"type": "string", "enum": ["info", "warn", "error", "debug"]},
+    "resources": {"type": "object"},
+    "podAnnotations": {"type": "object"},
+    "nodeSelector": {"type": "object"},
+    "tolerations": {"type": "array"},
+    "affinity": {"type": "object"}
+  }
+}
