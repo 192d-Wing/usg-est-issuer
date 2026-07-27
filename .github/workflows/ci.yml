@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # master
+        with:
+          toolchain: "1.95.0"
+          components: rustfmt,clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo test --locked
+      - run: cargo clippy --all-targets --locked -- -D warnings
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - run: docker run --rm -v "$PWD:/work:ro" -w /work docker.io/alpine/helm:3.18.4 lint deploy/charts/usg-est-issuer
+      - name: Reject cluster-wide or mutating Secret permissions
+        run: |
+          set -euo pipefail
+          output="$(docker run --rm -v "$PWD:/work:ro" -w /work docker.io/alpine/helm:3.18.4 template test deploy/charts/usg-est-issuer --namespace jitpw)"
+          ! grep -q "kind: ClusterRole" <<<"$output"
+          ! grep -qE 'verbs:.*(create|delete|patch|update).*[Ss]ecret' <<<"$output"
+          grep -q "readOnlyRootFilesystem: true" <<<"$output"
+          grep -q 'drop: \["ALL"\]' <<<"$output"
