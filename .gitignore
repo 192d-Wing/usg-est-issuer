@@ -1,0 +1,5 @@
+/target/
+*.log
+.env
+deploy/sites/*
+!deploy/sites/example/
