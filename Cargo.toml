@@ -1,0 +1,50 @@
+[package]
+name = "usg-est-issuer"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "Apache-2.0"
+description = "Fail-closed RFC 7030 EST external issuer for cert-manager"
+repository = "https://github.com/192d-Wing/usg-est-issuer"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+chrono = "0.4"
+der = { version = "0.8", features = ["pem"] }
+futures = "0.3"
+humantime = "2"
+k8s-crds-cert-manager = "1.20.3"
+k8s-openapi = { version = "0.28", features = ["v1_34", "schemars"] }
+kube = { version = "4.2", default-features = false, features = ["aws-lc-rs", "client", "derive", "runtime", "rustls-tls"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde-saphyr = "0.0.29"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+usg-est-client = { git = "https://github.com/192d-Wing/usg-est-client.git", rev = "99507ee242909993137c086ee1a42f3e5b55a3bf", default-features = false, features = ["fips"] }
+uuid = { version = "1", features = ["v7"] }
+x509-cert = "0.3.0-rc.4"
+x509-parser = { version = "0.18", features = ["verify-aws"] }
+
+[dev-dependencies]
+rcgen = "0.14"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
