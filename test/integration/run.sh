@@ -151,6 +151,29 @@ helm_cmd upgrade --install usg-est-issuer "${ROOT_DIR}/deploy/charts/usg-est-iss
 
 kubectl apply -f "${TEST_DIR}/manifests/est-issuer.yaml"
 kubectl apply -f "${TEST_DIR}/manifests/certificates.yaml"
+
+# cert-manager deliberately blocks external issuers until an independent
+# approver records an Approved condition. The lab's cluster-admin identity acts
+# as the explicit test approver; production must use organizational approval
+# policy and separation of duties.
+for certificate_name in valid-est denied-est; do
+  request_name=""
+  for _ in $(seq 1 60); do
+    request_name="$(
+      kubectl get certificaterequest -n integration \
+        -l "cert-manager.io/certificate-name=${certificate_name}" \
+        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
+    )"
+    [[ -n "${request_name}" ]] && break
+    sleep 1
+  done
+  [[ -n "${request_name}" ]]
+  approved_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  kubectl patch certificaterequest "${request_name}" -n integration \
+    --subresource=status --type=merge \
+    -p "{\"status\":{\"conditions\":[{\"type\":\"Approved\",\"status\":\"True\",\"reason\":\"IntegrationLabApproval\",\"message\":\"Approved by the isolated integration lab\",\"lastTransitionTime\":\"${approved_at}\"}]}}"
+done
+
 kubectl wait -n integration certificate/valid-est \
   --for=condition=Ready --timeout=3m
 

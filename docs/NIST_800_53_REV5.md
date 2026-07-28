@@ -32,6 +32,11 @@ fail-closed in Rust: serde rejects unknown spec fields, the controller validates
 authentication-method requirements, and policy evaluation denies empty or
 unauthorized DNS suffix sets before an EST network call.
 
+The integration assessment explicitly records cert-manager approval before the
+external issuer may process a request, providing evidence for AC-3 and AC-5.
+Approval does not imply authorization: issuer policy independently denies an
+approved request whose DNS identity is outside the configured ABAC boundary.
+
 ## Operator-provided controls
 
 The operator must provide certificate-request approval policy, Kubernetes audit

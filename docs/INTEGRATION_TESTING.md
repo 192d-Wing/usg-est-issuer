@@ -56,3 +56,11 @@ The lab installs the CRD into the pinned kind Kubernetes release before
 starting the controller. This verifies that the structural schema remains
 accepted by current apiextensions validation while controller-side
 authentication and policy checks remain fail-closed.
+
+The isolated cluster-admin identity explicitly adds the cert-manager
+`Approved=True` condition to each generated CertificateRequest. This models the
+independent approval boundary required by cert-manager without weakening the
+issuer: the valid request proceeds to EST, while the approved but unauthorized
+DNS request must still fail with `PolicyDenied` and produce no certificate
+Secret. Production deployments must use their organizational approver policy
+and separation of duties rather than this lab-only transition.
