@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: 192d-Wing/OstrichPKI
-          ref: 70ad2e1c7a785d7fc96cb2e8dd2e8902853d47b2
+          ref: e9064a678517d0c6cef1455c21fd00489e10197d
           path: test/vendor/ostrichpki
 
       - name: Install checksum-verified kind

@@ -20,6 +20,7 @@ mkdir -p "${TMP_DIR}/helm/config" "${TMP_DIR}/helm/cache" "${TMP_DIR}/helm/data"
 
 helm_cmd() {
   docker run --rm --network host \
+    --user "$(id -u):$(id -g)" \
     -e KUBECONFIG="${KUBECONFIG}" \
     -e HELM_CONFIG_HOME=/helm/config \
     -e HELM_CACHE_HOME=/helm/cache \
@@ -118,6 +119,7 @@ helm_cmd upgrade --install ostrich-ci "${OSTRICH_CHART_DIR}" \
   --set image.tag="${OSTRICH_IMAGE_TAG}" \
   --set postgresql.enabled=false \
   --set externalDatabase.host=ostrich-ci-postgres \
+  --set externalDatabase.sslMode=disable \
   --set externalDatabase.existingSecret=ostrich-ci-postgres \
   --set externalDatabase.existingSecretPasswordKey=password \
   --wait --wait-for-jobs --timeout 8m
