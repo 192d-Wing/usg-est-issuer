@@ -40,7 +40,7 @@ cleanup_and_collect() {
       --all-namespaces -o wide >"${ARTIFACT_DIR}/resources.txt" 2>&1 || true
     kubectl get events --all-namespaces --sort-by=.lastTimestamp \
       >"${ARTIFACT_DIR}/events.txt" 2>&1 || true
-    kubectl logs -n integration deployment/usg-est-issuer --all-containers \
+    kubectl logs -n integration deployment/usg-est-issuer-usg-est-issuer --all-containers \
       >"${ARTIFACT_DIR}/issuer.log" 2>&1 || true
     kubectl logs -n ostrich-ci deployment/ostrich-ci-ostrich-pki-est --all-containers \
       >"${ARTIFACT_DIR}/ostrich-est.log" 2>&1 || true
@@ -157,17 +157,10 @@ kubectl apply -f "${TEST_DIR}/manifests/certificates.yaml"
 # as the explicit test approver; production must use organizational approval
 # policy and separation of duties.
 for certificate_name in valid-est denied-est; do
-  request_name=""
-  for _ in $(seq 1 60); do
-    request_name="$(
-      kubectl get certificaterequest -n integration \
-        -l "cert-manager.io/certificate-name=${certificate_name}" \
-        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true
-    )"
-    [[ -n "${request_name}" ]] && break
-    sleep 1
-  done
-  [[ -n "${request_name}" ]]
+  # A fresh cluster creates revision 1 deterministically for each Certificate.
+  request_name="${certificate_name}-1"
+  kubectl wait -n integration "certificaterequest/${request_name}" \
+    --for=create --timeout=2m
   approved_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   kubectl patch certificaterequest "${request_name}" -n integration \
     --subresource=status --type=merge \
@@ -196,14 +189,12 @@ denied_status=""
 denied_reason=""
 for _ in $(seq 1 90); do
   denied_status="$(
-    kubectl get certificaterequest -n integration \
-      -l cert-manager.io/certificate-name=denied-est \
-      -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true
+    kubectl get certificaterequest denied-est-1 -n integration \
+      -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true
   )"
   denied_reason="$(
-    kubectl get certificaterequest -n integration \
-      -l cert-manager.io/certificate-name=denied-est \
-      -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || true
+    kubectl get certificaterequest denied-est-1 -n integration \
+      -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || true
   )"
   if [[ "${denied_status}" == "False" && "${denied_reason}" == "PolicyDenied" ]]; then
     break
@@ -216,7 +207,7 @@ if kubectl get secret denied-est-tls -n integration >/dev/null 2>&1; then
   exit 1
 fi
 
-kubectl logs -n integration deployment/usg-est-issuer --all-containers \
+kubectl logs -n integration deployment/usg-est-issuer-usg-est-issuer --all-containers \
   >"${ARTIFACT_DIR}/issuer.log"
 if grep -Fq "${ADMIN_PASSWORD}" "${ARTIFACT_DIR}/issuer.log"; then
   echo "issuer audit log exposed the EST password" >&2
