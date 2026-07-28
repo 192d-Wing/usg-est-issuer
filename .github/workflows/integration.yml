@@ -20,7 +20,7 @@ jobs:
     env:
       KUBECONFIG: /home/runner/.kube/config
       OSTRICH_CHART_DIR: ${{ github.workspace }}/test/vendor/ostrichpki/deploy/helm/ostrich-pki
-      OSTRICH_IMAGE_TAG: sha-e46ffd7
+      OSTRICH_IMAGE_TAG: sha-75508e0
     steps:
       - name: Checkout issuer
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: 192d-Wing/OstrichPKI
-          ref: e46ffd7e69ee8c706fe9fef5be8b2e40b8bad8d4
+          ref: 75508e08386f7d8494b3fbbdb34f5d0ef597a448
           path: test/vendor/ostrichpki
 
       - name: Install checksum-verified kind
