@@ -129,14 +129,14 @@ kubectl wait -n ostrich-ci job/ostrich-ci-ostrich-pki-ca-bootstrap \
 
 # The pinned OstrichPKI bootstrap creates the Basic-auth principal as an
 # Administrator, which intentionally cannot submit certificate requests.
-# Assign the disposable lab account the least-privileged human/service role
-# that supports persistent Basic-auth enrollment. EstEnrollee is deliberately
-# excluded because it is reserved for bounded bearer tokens whose UUID maps to
-# est_enrollment_tokens. Assert that exactly one expected account transitioned.
+# Assign the disposable lab account the narrowest stored-user role that grants
+# SubmitRequest. EstEnrollee is deliberately excluded because it is reserved
+# for bounded bearer tokens whose UUID maps to est_enrollment_tokens. Assert
+# that exactly one expected account transitioned.
 updated_accounts="$(
   kubectl exec -n ostrich-ci deployment/ostrich-ci-postgres -- \
       psql -U ostrich -d ostrich_pki -v ON_ERROR_STOP=1 -qAtc \
-    "UPDATE users SET roles = ARRAY['operations_staff'] WHERE username = 'integration.lab.example.mil' RETURNING username"
+    "UPDATE users SET roles = ARRAY['aor'] WHERE username = 'integration.lab.example.mil' RETURNING username"
 )"
 readonly updated_accounts
 [[ "${updated_accounts}" == "integration.lab.example.mil" ]]
