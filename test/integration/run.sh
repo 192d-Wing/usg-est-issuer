@@ -16,11 +16,16 @@ chmod 700 "${ARTIFACT_DIR}"
 TMP_DIR="$(mktemp -d)"
 readonly TMP_DIR
 chmod 700 "${TMP_DIR}"
+mkdir -p "${TMP_DIR}/helm/config" "${TMP_DIR}/helm/cache" "${TMP_DIR}/helm/data"
 
 helm_cmd() {
   docker run --rm --network host \
     -e KUBECONFIG="${KUBECONFIG}" \
+    -e HELM_CONFIG_HOME=/helm/config \
+    -e HELM_CACHE_HOME=/helm/cache \
+    -e HELM_DATA_HOME=/helm/data \
     -v "$(dirname "${KUBECONFIG}")":"$(dirname "${KUBECONFIG}")":ro \
+    -v "${TMP_DIR}/helm:/helm" \
     -v "${ROOT_DIR}:${ROOT_DIR}" \
     -v "${OSTRICH_CHART_DIR}:${OSTRICH_CHART_DIR}" \
     -w "${ROOT_DIR}" \
@@ -105,6 +110,7 @@ kubectl create secret generic ostrich-ci-est-tls -n ostrich-ci \
 kubectl apply -f "${TEST_DIR}/manifests/postgres.yaml"
 kubectl rollout status deployment/ostrich-ci-postgres -n ostrich-ci --timeout=3m
 
+helm_cmd repo add bitnami https://charts.bitnami.com/bitnami
 helm_cmd dependency build "${OSTRICH_CHART_DIR}"
 helm_cmd upgrade --install ostrich-ci "${OSTRICH_CHART_DIR}" \
   --namespace ostrich-ci \
