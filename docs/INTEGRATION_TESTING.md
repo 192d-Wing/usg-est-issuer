@@ -52,3 +52,7 @@ bash test/integration/run.sh
 
 The harness uses random ephemeral credentials and does not accept production
 credentials.
+The lab installs the CRD into the pinned kind Kubernetes release before
+starting the controller. This verifies that the structural schema remains
+accepted by current apiextensions validation while controller-side
+authentication and policy checks remain fail-closed.
