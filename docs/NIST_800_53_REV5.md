@@ -21,6 +21,9 @@ authorization to operate or replace organizational assessment.
 | SI-10 Information Input Validation | Strict PEM/DER, signature, SAN, usage, duration, and response validation |
 | SI-11 Error Handling | Sanitized conditions; detailed internal reason codes without secret material |
 | SI-16 Memory Protection | Rust memory safety, forbidden unsafe code, non-root read-only container |
+| CA-2 Security Assessments | Automated cert-manager/OstrichPKI certificate-lifecycle assessment |
+| CA-7 Continuous Monitoring | Required integration check and retained failure diagnostics |
+| SA-11 Developer Testing and Evaluation | Success, policy-denial, key-match, and log-leakage assertions |
 
 ## Operator-provided controls
 
@@ -28,3 +31,6 @@ The operator must provide certificate-request approval policy, Kubernetes audit
 logging, network policy, image admission and signature verification, immutable
 log retention, time synchronization, backup, incident response, vulnerability
 management, and separation of duties for PKI Secret labeling.
+
+Integration evidence and its SoftHSM limitation are documented in
+[INTEGRATION_TESTING.md](INTEGRATION_TESTING.md).

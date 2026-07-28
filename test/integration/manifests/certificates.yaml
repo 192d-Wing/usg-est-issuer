@@ -1,0 +1,47 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: valid-est
+  namespace: integration
+spec:
+  secretName: valid-est-tls
+  commonName: integration.lab.example.mil
+  duration: 24h
+  renewBefore: 8h
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Always
+  usages:
+    - digital signature
+    - server auth
+  dnsNames:
+    - integration.lab.example.mil
+  issuerRef:
+    name: ostrich-est
+    kind: EstIssuer
+    group: pki.usg.mil
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: denied-est
+  namespace: integration
+spec:
+  secretName: denied-est-tls
+  commonName: attacker.example.net
+  duration: 24h
+  renewBefore: 8h
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Always
+  usages:
+    - digital signature
+    - server auth
+  dnsNames:
+    - attacker.example.net
+  issuerRef:
+    name: ostrich-est
+    kind: EstIssuer
+    group: pki.usg.mil

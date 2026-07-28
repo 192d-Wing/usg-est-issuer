@@ -1,0 +1,17 @@
+apiVersion: pki.usg.mil/v1alpha1
+kind: EstIssuer
+metadata:
+  name: ostrich-est
+  namespace: integration
+spec:
+  serverUrl: https://ostrich-ci-ostrich-pki-est.ostrich-ci.svc:8443/.well-known/est
+  authentication:
+    method: basic
+    trustSecretName: ostrich-est-trust
+    secretName: ostrich-est-basic
+    username: integration.lab.example.mil
+  policy:
+    allowedDnsSuffixes:
+      - lab.example.mil
+    maxDnsSans: 4
+    maxDuration: 24h

@@ -69,3 +69,10 @@ issuerRef:
 ```
 
 The cert-manager approver remains a separate authorization component.
+
+## Integration testing
+
+The required Kubernetes integration workflow exercises a complete cert-manager
+certificate lifecycle against the pinned OstrichPKI EST implementation,
+including fail-closed DNS-policy and secret-leakage assertions. See
+[Kubernetes EST integration testing](docs/INTEGRATION_TESTING.md).
