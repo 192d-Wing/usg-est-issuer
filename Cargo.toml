@@ -25,7 +25,7 @@ thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
-usg-est-client = { git = "https://github.com/192d-Wing/usg-est-client.git", rev = "99507ee242909993137c086ee1a42f3e5b55a3bf", default-features = false, features = ["fips"] }
+usg-est-client = { version = "=2.2.0", default-features = false, features = ["fips"] }
 uuid = { version = "1", features = ["v7"] }
 x509-cert = "0.3.0-rc.4"
 x509-parser = { version = "0.18", features = ["verify-aws"] }

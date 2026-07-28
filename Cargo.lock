@@ -3246,8 +3246,9 @@ dependencies = [
 
 [[package]]
 name = "usg-est-client"
-version = "2.1.3"
-source = "git+https://github.com/192d-Wing/usg-est-client.git?rev=99507ee242909993137c086ee1a42f3e5b55a3bf#99507ee242909993137c086ee1a42f3e5b55a3bf"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9daaf1124c7989342f1efda2ebafdf6e0be39530cf2de63dc33bec0fe9bba223"
 dependencies = [
  "async-trait",
  "aws-lc-fips-sys",
