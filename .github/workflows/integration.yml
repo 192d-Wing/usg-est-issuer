@@ -1,0 +1,59 @@
+name: Kubernetes integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: est-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ostrich-est:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      KUBECONFIG: /home/runner/.kube/config
+      OSTRICH_CHART_DIR: ${{ github.workspace }}/test/vendor/ostrichpki/deploy/helm/ostrich-pki
+      OSTRICH_IMAGE_TAG: sha-75508e0
+    steps:
+      - name: Checkout issuer
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Checkout pinned OstrichPKI chart
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: 192d-Wing/OstrichPKI
+          ref: 75508e08386f7d8494b3fbbdb34f5d0ef597a448
+          path: test/vendor/ostrichpki
+
+      - name: Install checksum-verified kind
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            --output /tmp/kind \
+            https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-amd64
+          echo "50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54  /tmp/kind" |
+            sha256sum --check
+          sudo install -m 0755 /tmp/kind /usr/local/bin/kind
+
+      - name: Build issuer image
+        run: docker build --tag usg-est-issuer:integration .
+
+      - name: Exercise certificate lifecycle
+        run: bash test/integration/run.sh
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: est-integration-diagnostics
+          path: test/integration/artifacts
+          if-no-files-found: warn
+          retention-days: 14

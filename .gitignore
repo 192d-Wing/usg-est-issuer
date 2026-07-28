@@ -3,3 +3,5 @@
 .env
 deploy/sites/*
 !deploy/sites/example/
+test/integration/artifacts/
+test/vendor/
