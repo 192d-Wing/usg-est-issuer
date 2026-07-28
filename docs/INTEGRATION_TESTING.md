@@ -68,6 +68,9 @@ and separation of duties rather than this lab-only transition.
 The pinned OstrichPKI bootstrap initially creates its Basic-auth account as an
 Administrator, a role that deliberately cannot submit certificate requests.
 After the one-shot bootstrap completes, the disposable lab changes exactly that
-account to the machine-only `est_enrollee` role directly in the isolated test
-database. This is test fixture setup, not a production account-provisioning
+account to `operations_staff`, the least-privileged stored-user role in the
+pinned release that supports persistent Basic-auth enrollment, directly in the
+isolated test database. The machine-only `est_enrollee` role is not used because
+it is reserved for bounded bearer-token principals backed by an enrollment-token
+record. This is test fixture setup, not a production account-provisioning
 procedure; production must use the PKI platform's audited identity lifecycle.
