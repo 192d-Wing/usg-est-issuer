@@ -46,7 +46,7 @@ checksum-verified kind version defined in the workflow:
 docker build --tag usg-est-issuer:integration .
 export KUBECONFIG="${HOME}/.kube/config"
 export OSTRICH_CHART_DIR=/path/to/pinned/OstrichPKI/deploy/helm/ostrich-pki
-export OSTRICH_IMAGE_TAG=sha-e5c69b2
+export OSTRICH_IMAGE_TAG=sha-75508e0
 bash test/integration/run.sh
 ```
 
@@ -64,3 +64,10 @@ issuer: the valid request proceeds to EST, while the approved but unauthorized
 DNS request must still fail with `PolicyDenied` and produce no certificate
 Secret. Production deployments must use their organizational approver policy
 and separation of duties rather than this lab-only transition.
+
+The pinned OstrichPKI bootstrap initially creates its Basic-auth account as an
+Administrator, a role that deliberately cannot submit certificate requests.
+After the one-shot bootstrap completes, the disposable lab changes exactly that
+account to the machine-only `est_enrollee` role directly in the isolated test
+database. This is test fixture setup, not a production account-provisioning
+procedure; production must use the PKI platform's audited identity lifecycle.

@@ -126,6 +126,20 @@ helm_cmd upgrade --install ostrich-ci "${OSTRICH_CHART_DIR}" \
 
 kubectl wait -n ostrich-ci job/ostrich-ci-ostrich-pki-ca-bootstrap \
   --for=condition=Complete --timeout=5m
+
+# The pinned OstrichPKI bootstrap creates the Basic-auth principal as an
+# Administrator, which intentionally cannot submit certificate requests.
+# Narrow that disposable account to the machine-only EstEnrollee role before
+# admitting EST traffic. This changes no credential material and asserts that
+# exactly one expected account was transitioned.
+updated_accounts="$(
+  kubectl exec -n ostrich-ci deployment/ostrich-ci-postgres -- \
+      psql -U ostrich -d ostrich_pki -v ON_ERROR_STOP=1 -qAtc \
+    "UPDATE users SET roles = ARRAY['est_enrollee'] WHERE username = 'integration.lab.example.mil' RETURNING username"
+)"
+readonly updated_accounts
+[[ "${updated_accounts}" == "integration.lab.example.mil" ]]
+
 kubectl rollout status -n ostrich-ci deployment/ostrich-ci-ostrich-pki-ca --timeout=5m
 kubectl rollout status -n ostrich-ci deployment/ostrich-ci-ostrich-pki-est --timeout=5m
 
