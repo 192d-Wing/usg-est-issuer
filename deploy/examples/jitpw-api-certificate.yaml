@@ -1,0 +1,24 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: jitpw-api
+  namespace: jitpw
+spec:
+  secretName: jitpw-api-tls
+  duration: 720h
+  renewBefore: 168h
+  privateKey:
+    algorithm: ECDSA
+    size: 384
+    rotationPolicy: Always
+  usages:
+    - digital signature
+    - server auth
+  dnsNames:
+    - jitpw-api.lab.example.mil
+    - jitpw-api.jitpw.svc
+    - jitpw-api.jitpw.svc.cluster.local
+  issuerRef:
+    name: enterprise-est
+    kind: EstIssuer
+    group: pki.usg.mil

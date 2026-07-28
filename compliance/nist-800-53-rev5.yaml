@@ -1,0 +1,76 @@
+framework: NIST SP 800-53 Rev. 5
+component: usg-est-issuer
+version: 0.1.0
+controls:
+  AC-3:
+    mechanisms:
+      - approved-and-not-denied gate
+      - issuer allowlist policy
+      - namespaced Kubernetes RBAC
+  AC-4:
+    mechanisms:
+      - CSR-only interface
+      - no workload private-key access
+  AC-6:
+    mechanisms:
+      - namespaced Role
+      - get-only Secret access
+      - no Secret mutation
+  AU-2:
+    events:
+      - certificate issuance success
+      - certificate issuance failure
+      - policy denial
+      - pending enrollment
+  AU-3:
+    fields:
+      - action
+      - outcome
+      - reason
+      - correlation_id
+      - namespace
+      - resource name and UID
+      - issuer
+      - actor UID
+  AU-8:
+    mechanisms:
+      - UTC structured-log timestamp
+      - Kubernetes condition transition time
+  AU-9:
+    operator_responsibility:
+      - authenticated encrypted log transport
+      - append-only retention
+  AU-12:
+    schema: usg.est.issuer.audit.v1
+  CM-6:
+    mechanisms:
+      - structural CRD schema
+      - deny-by-default policy
+  IA-5:
+    mechanisms:
+      - immutable explicitly labeled credential Secrets
+      - mutual TLS bootstrap support
+  SC-8:
+    mechanisms:
+      - HTTPS-only EST
+      - explicit EST server CA
+  SC-12:
+    mechanisms:
+      - cert-manager owns workload key generation and storage
+  SC-13:
+    mechanisms:
+      - ECDSA P-384 with SHA-384 request profile
+      - AWS-LC rustls provider
+  SI-10:
+    mechanisms:
+      - strict CSR and response parsing
+      - proof-of-possession verification
+      - SAN, usage, duration, and SPKI-match validation
+  SI-11:
+    mechanisms:
+      - sanitized Kubernetes conditions
+      - secret-free structured errors
+  SI-16:
+    mechanisms:
+      - unsafe Rust forbidden
+      - non-root read-only container
