@@ -23,21 +23,17 @@ jobs:
       contents: read
     uses: ./.github/workflows/integration.yml
 
-  publish:
+  prepare:
     needs: [ci, kubernetes-integration]
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      packages: write
-      id-token: write
-      attestations: write
-    env:
-      IMAGE: ghcr.io/192d-wing/usg-est-issuer
+    outputs:
+      release_version: ${{ steps.version.outputs.release_version }}
     steps:
       - name: Checkout tagged source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Verify release tag and component versions
+        id: version
         shell: bash
         run: |
           set -euo pipefail
@@ -51,44 +47,40 @@ jobs:
           [[ "${version}" == "${chart_version}" ]]
           [[ "${version}" == "${app_version}" ]]
           [[ "${version}" == "${image_tag}" ]]
-          echo "RELEASE_VERSION=${version}" >> "${GITHUB_ENV}"
+          echo "release_version=${version}" >> "${GITHUB_OUTPUT}"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
-        with:
-          platforms: arm64
+  build:
+    name: build (${{ matrix.arch }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+            machine: x86_64
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            machine: aarch64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/192d-wing/usg-est-issuer
+      RELEASE_VERSION: ${{ needs.prepare.outputs.release_version }}
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Verify native runner architecture
+        shell: bash
+        run: test "$(uname -m)" = "${{ matrix.machine }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-
-      - name: Build image for security scan
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
-        with:
-          context: .
-          load: true
-          platforms: linux/amd64
-          tags: usg-est-issuer:release-scan
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Scan release image
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
-        with:
-          image-ref: usg-est-issuer:release-scan
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
-
-      - name: Generate SPDX SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: usg-est-issuer:release-scan
-          format: spdx-json
-          output-file: usg-est-issuer-${{ env.RELEASE_VERSION }}.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
 
       - name: Log in to GHCR
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -102,6 +94,116 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: type=raw,value=${{ env.RELEASE_VERSION }}
+          labels: |
+            org.opencontainers.image.title=usg-est-issuer
+            org.opencontainers.image.description=Fail-closed RFC 7030 EST external issuer for cert-manager
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build and push native image by digest
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=container-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=container-${{ matrix.arch }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Scan native image digest
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Generate native SPDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: usg-est-issuer-${{ env.RELEASE_VERSION }}-${{ matrix.arch }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Export platform digest
+        env:
+          PLATFORM_DIGEST: ${{ steps.build.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${PLATFORM_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          mkdir -p "${RUNNER_TEMP}/digests"
+          touch "${RUNNER_TEMP}/digests/${PLATFORM_DIGEST#sha256:}"
+
+      - name: Upload platform digest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload native SPDX SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-${{ matrix.arch }}
+          path: usg-est-issuer-${{ env.RELEASE_VERSION }}-${{ matrix.arch }}.spdx.json
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      IMAGE: ghcr.io/192d-wing/usg-est-issuer
+      RELEASE_VERSION: ${{ needs.prepare.outputs.release_version }}
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Download platform digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: digest-*
+          path: ${{ runner.temp }}/digests
+          merge-multiple: true
+
+      - name: Download native SPDX SBOMs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: sbom-*
+          path: ${{ runner.temp }}/sboms
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -111,38 +213,63 @@ jobs:
             org.opencontainers.image.description=Fail-closed RFC 7030 EST external issuer for cert-manager
             org.opencontainers.image.licenses=Apache-2.0
 
-      - name: Publish image with SBOM and provenance
-        id: publish
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
-          cache-from: type=gha
-          provenance: mode=max
-          sbom: true
-
-      - name: Verify multi-platform image
+      - name: Create multi-platform image index
+        id: manifest
+        env:
+          METADATA_JSON: ${{ steps.metadata.outputs.json }}
         shell: bash
         run: |
           set -euo pipefail
-          image="${IMAGE}@${{ steps.publish.outputs.digest }}"
-          platforms="$(
-            docker buildx imagetools inspect "${image}" --raw |
-              jq -r '.manifests[]
-                | select(.platform.os == "linux")
-                | "\(.platform.os)/\(.platform.architecture)"'
+          shopt -s nullglob
+          digest_files=("${RUNNER_TEMP}/digests"/*)
+          [[ "${#digest_files[@]}" -eq 2 ]]
+
+          sources=()
+          for digest_file in "${digest_files[@]}"; do
+            digest="$(basename "${digest_file}")"
+            [[ "${digest}" =~ ^[0-9a-f]{64}$ ]]
+            sources+=("${IMAGE}@sha256:${digest}")
+          done
+
+          mapfile -t tags < <(jq -r '.tags[]' <<< "${METADATA_JSON}")
+          [[ "${#tags[@]}" -ge 1 ]]
+          tag_args=()
+          for tag in "${tags[@]}"; do
+            tag_args+=(--tag "${tag}")
+          done
+
+          docker buildx imagetools create \
+            "${tag_args[@]}" \
+            --metadata-file "${RUNNER_TEMP}/manifest-metadata.json" \
+            "${sources[@]}"
+
+          digest="$(
+            jq -er '."containerimage.descriptor".digest
+              | select(test("^sha256:[0-9a-f]{64}$"))' \
+              "${RUNNER_TEMP}/manifest-metadata.json"
           )"
-          grep -Fxq "linux/amd64" <<< "${platforms}"
-          grep -Fxq "linux/arm64" <<< "${platforms}"
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify multi-platform image index
+        env:
+          IMAGE_DIGEST: ${{ steps.manifest.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$(
+            docker buildx imagetools inspect \
+              "${IMAGE}@${IMAGE_DIGEST}" \
+              --format '{{json .Manifest}}'
+          )"
+          [[ "$(jq -r '.digest' <<< "${manifest}")" == "${IMAGE_DIGEST}" ]]
+          [[ "$(jq '[.manifests[] | select(.platform.os == "linux" and .platform.architecture == "amd64")] | length' <<< "${manifest}")" -eq 1 ]]
+          [[ "$(jq '[.manifests[] | select(.platform.os == "linux" and .platform.architecture == "arm64")] | length' <<< "${manifest}")" -eq 1 ]]
 
       - name: Create GitHub artifact attestation
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-name: ${{ env.IMAGE }}
-          subject-digest: ${{ steps.publish.outputs.digest }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
           push-to-registry: true
 
       - name: Install Cosign
@@ -152,12 +279,12 @@ jobs:
 
       - name: Sign image digest
         shell: bash
-        run: cosign sign --yes "${IMAGE}@${{ steps.publish.outputs.digest }}"
+        run: cosign sign --yes "${IMAGE}@${{ steps.manifest.outputs.digest }}"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+          IMAGE_DIGEST: ${{ steps.manifest.outputs.digest }}
         shell: bash
         run: |
           set -euo pipefail
@@ -166,5 +293,6 @@ jobs:
             --verify-tag \
             --title "usg-est-issuer ${RELEASE_VERSION}" \
             --generate-notes \
-            "usg-est-issuer-${RELEASE_VERSION}.spdx.json#SPDX SBOM" \
+            "${RUNNER_TEMP}/sboms/usg-est-issuer-${RELEASE_VERSION}-amd64.spdx.json#AMD64 SPDX SBOM" \
+            "${RUNNER_TEMP}/sboms/usg-est-issuer-${RELEASE_VERSION}-arm64.spdx.json#ARM64 SPDX SBOM" \
             "image-digest.txt#Published image digest"

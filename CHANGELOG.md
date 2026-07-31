@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-07-31
+
+### Changed
+
+- Build and vulnerability-scan AMD64 and ARM64 images on native GitHub-hosted
+  runners in a CI matrix, replacing ARM64 emulation.
+- Merge the independently published platform digests into one verified,
+  signed, and attested OCI image index.
+- Publish architecture-specific SPDX SBOM release assets.
+
 ## [0.2.2] - 2026-07-30
 
 ### Fixed
@@ -47,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Publish production images by immutable digest with synchronized Cargo,
   Helm chart, application, and default image versions.
 
+[0.2.3]: https://github.com/192d-Wing/usg-est-issuer/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/192d-Wing/usg-est-issuer/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/192d-Wing/usg-est-issuer/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/192d-Wing/usg-est-issuer/releases/tag/v0.2.0
