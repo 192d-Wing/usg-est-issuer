@@ -14,6 +14,7 @@ plaintext EST, automatic approval, or server-side key generation.
 - A `CertificateRequest` must have `Approved=True` and must not have
   `Denied=True`.
 - Requests are restricted to ECDSA P-384 with SHA-384.
+- A CSR common name, when present, must match one of its DNS SANs.
 - Only `digital signature` and `server auth` usages are accepted.
 - DNS SANs must fall within an issuer allowlist; an empty allowlist denies all.
 - EST trust is explicit. System or implicit roots are not used.
@@ -69,6 +70,19 @@ issuerRef:
 ```
 
 The cert-manager approver remains a separate authorization component.
+
+## Releases
+
+Pushing a semantic-version tag such as `v0.1.0` runs the Rust, Helm, and full
+Kubernetes EST integration gates before publishing
+`ghcr.io/192d-wing/usg-est-issuer`. The tag must match the versions in
+`Cargo.toml`, the Helm chart, and the chart's default image tag.
+
+The release workflow rejects high or critical known vulnerabilities, publishes
+the image by immutable digest with OCI SBOM and provenance attestations, signs
+the digest with GitHub Actions OIDC through Cosign, and attaches an SPDX SBOM
+and digest record to the GitHub Release. Production Helm deployments should set
+`image.digest` to the released digest rather than relying on a mutable tag.
 
 ## Integration testing
 
