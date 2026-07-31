@@ -112,12 +112,26 @@ jobs:
         with:
           context: .
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha
           provenance: mode=max
           sbom: true
+
+      - name: Verify multi-platform image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${IMAGE}@${{ steps.publish.outputs.digest }}"
+          platforms="$(
+            docker buildx imagetools inspect "${image}" --raw |
+              jq -r '.manifests[]
+                | select(.platform.os == "linux")
+                | "\(.platform.os)/\(.platform.architecture)"'
+          )"
+          grep -Fxq "linux/amd64" <<< "${platforms}"
+          grep -Fxq "linux/arm64" <<< "${platforms}"
 
       - name: Create GitHub artifact attestation
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
