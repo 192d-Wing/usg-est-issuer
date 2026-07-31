@@ -31,6 +31,8 @@ use crate::{
 
 const FIELD_MANAGER: &str = "usg-est-issuer";
 const ECDSA_SHA384_OID: &str = "1.2.840.10045.4.3.3";
+const EC_PUBLIC_KEY_OID: &str = "1.2.840.10045.2.1";
+const P384_CURVE_OID: &str = "1.3.132.0.34";
 
 #[derive(Clone)]
 pub struct Context {
@@ -309,13 +311,31 @@ fn decode_and_validate_csr(
             "trailing data after CSR is prohibited".to_string(),
         ));
     }
+    validate_public_key(&csr)?;
     if csr.signature_algorithm.algorithm.to_id_string() != ECDSA_SHA384_OID {
         return Err(IssuerError::Policy(
             "only ECDSA P-384 with SHA-384 is permitted".to_string(),
         ));
     }
-    validate_dns_sans(&csr, policy)?;
+    let dns_names = validate_dns_sans(&csr, policy)?;
+    validate_common_name(&csr, &dns_names)?;
     Ok(pem.contents)
+}
+
+fn validate_public_key(csr: &X509CertificationRequest<'_>) -> Result<(), IssuerError> {
+    let algorithm = &csr.certification_request_info.subject_pki.algorithm;
+    let curve = algorithm
+        .parameters
+        .as_ref()
+        .and_then(|parameters| parameters.as_oid().ok());
+    if algorithm.algorithm.to_id_string() != EC_PUBLIC_KEY_OID
+        || curve.is_none_or(|curve| curve.to_id_string() != P384_CURVE_OID)
+    {
+        return Err(IssuerError::Policy(
+            "only ECDSA P-384 public keys are permitted".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_usages(request: &CertificateRequest) -> Result<(), IssuerError> {
@@ -357,7 +377,7 @@ fn validate_duration(
 fn validate_dns_sans(
     csr: &X509CertificationRequest<'_>,
     policy: &IssuancePolicy,
-) -> Result<(), IssuerError> {
+) -> Result<Vec<String>, IssuerError> {
     if policy.allowed_dns_suffixes.is_empty() {
         return Err(IssuerError::Configuration(
             "allowedDnsSuffixes must not be empty".to_string(),
@@ -371,7 +391,7 @@ fn validate_dns_sans(
         if let ParsedExtension::SubjectAlternativeName(san) = extension {
             for name in &san.general_names {
                 match name {
-                    GeneralName::DNSName(dns) => dns_names.push(*dns),
+                    GeneralName::DNSName(dns) => dns_names.push(dns.to_ascii_lowercase()),
                     _ => {
                         return Err(IssuerError::Policy(
                             "only DNS subject alternative names are permitted".to_string(),
@@ -386,18 +406,42 @@ fn validate_dns_sans(
             "DNS SAN count violates issuer policy".to_string(),
         ));
     }
-    for dns in dns_names {
-        let dns = dns.to_ascii_lowercase();
+    for dns in &dns_names {
         if dns.contains('*')
             || !policy.allowed_dns_suffixes.iter().any(|suffix| {
                 let suffix = suffix.trim_start_matches('.').to_ascii_lowercase();
-                dns == suffix || dns.ends_with(&format!(".{suffix}"))
+                dns == &suffix || dns.ends_with(&format!(".{suffix}"))
             })
         {
             return Err(IssuerError::Policy(
                 "DNS SAN is outside the permitted namespace".to_string(),
             ));
         }
+    }
+    Ok(dns_names)
+}
+
+fn validate_common_name(
+    csr: &X509CertificationRequest<'_>,
+    dns_names: &[String],
+) -> Result<(), IssuerError> {
+    let mut common_names = csr.certification_request_info.subject.iter_common_name();
+    let Some(common_name) = common_names.next() else {
+        return Ok(());
+    };
+    if common_names.next().is_some() {
+        return Err(IssuerError::Policy(
+            "CSR must not contain multiple common names".to_string(),
+        ));
+    }
+    let common_name = common_name
+        .as_str()
+        .map_err(|_| IssuerError::Policy("CSR common name is not valid UTF-8".to_string()))?
+        .to_ascii_lowercase();
+    if !dns_names.iter().any(|dns| dns == &common_name) {
+        return Err(IssuerError::Policy(
+            "CSR common name must match a DNS subject alternative name".to_string(),
+        ));
     }
     Ok(())
 }
@@ -512,16 +556,23 @@ enum ActionResult {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use rcgen::{KeyPair, PKCS_ECDSA_P384_SHA384};
+    use rcgen::{KeyPair, PKCS_ECDSA_P256_SHA256, PKCS_ECDSA_P384_SHA384, SignatureAlgorithm};
 
     fn test_request(dns_name: &str) -> CertificateRequest {
-        let key = KeyPair::generate_for(&PKCS_ECDSA_P384_SHA384).unwrap();
-        let (csr_der, _) = usg_est_client::csr::CsrBuilder::new()
-            .common_name(dns_name)
-            .san_dns(dns_name)
-            .with_key_pair(key)
-            .build()
-            .unwrap();
+        test_request_with(Some(dns_name), dns_name, &PKCS_ECDSA_P384_SHA384)
+    }
+
+    fn test_request_with(
+        common_name: Option<&str>,
+        dns_name: &str,
+        algorithm: &'static SignatureAlgorithm,
+    ) -> CertificateRequest {
+        let key = KeyPair::generate_for(algorithm).unwrap();
+        let mut builder = usg_est_client::csr::CsrBuilder::new().san_dns(dns_name);
+        if let Some(common_name) = common_name {
+            builder = builder.common_name(common_name);
+        }
+        let (csr_der, _) = builder.with_key_pair(key).build().unwrap();
         let encoded = base64::engine::general_purpose::STANDARD.encode(csr_der);
         let pem = format!(
             "-----BEGIN CERTIFICATE REQUEST-----\n{}\n-----END CERTIFICATE REQUEST-----\n",
@@ -592,6 +643,28 @@ mod tests {
         let request = test_request("attacker.example.net");
         let error = decode_and_validate_csr(&request, &test_policy()).unwrap_err();
         assert!(matches!(error, IssuerError::Policy(_)));
+    }
+
+    #[test]
+    fn p256_public_key_is_rejected() {
+        let request = test_request_with(
+            Some("jitpw-api.lab.example.mil"),
+            "jitpw-api.lab.example.mil",
+            &PKCS_ECDSA_P256_SHA256,
+        );
+        let error = decode_and_validate_csr(&request, &test_policy()).unwrap_err();
+        assert!(error.to_string().contains("P-384 public keys"));
+    }
+
+    #[test]
+    fn common_name_must_match_a_dns_san() {
+        let request = test_request_with(
+            Some("attacker.example.net"),
+            "jitpw-api.lab.example.mil",
+            &PKCS_ECDSA_P384_SHA384,
+        );
+        let error = decode_and_validate_csr(&request, &test_policy()).unwrap_err();
+        assert!(error.to_string().contains("must match a DNS"));
     }
 
     #[test]

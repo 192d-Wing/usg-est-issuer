@@ -1,0 +1,8 @@
+.git
+.github
+.env
+target
+test/integration/artifacts
+test/vendor
+*.log
+deploy/sites

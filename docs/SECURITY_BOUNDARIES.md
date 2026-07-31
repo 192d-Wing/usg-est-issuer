@@ -50,6 +50,7 @@ The initial API permits only:
 - ECDSA P-384 CSRs signed with SHA-384;
 - end-entity certificates;
 - DNS SANs without wildcards;
+- at most one common name, which must match one of the DNS SANs;
 - configured DNS suffixes;
 - bounded SAN counts and durations; and
 - `digital signature` and `server auth` usages.
