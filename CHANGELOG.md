@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Build and vulnerability-scan AMD64 and ARM64 images on native GitHub-hosted
   runners in a CI matrix, replacing ARM64 emulation.
+- Pin the Rust builder and distroless runtime bases to verified multi-platform
+  OCI indexes so each native runner selects the correct architecture.
 - Merge the independently published platform digests into one verified,
   signed, and attested OCI image index.
 - Publish architecture-specific SPDX SBOM release assets.
